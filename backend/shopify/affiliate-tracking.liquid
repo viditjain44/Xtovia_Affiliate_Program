@@ -1,0 +1,39 @@
+{% comment %}
+  Xtovia affiliate tracking
+  Install: Shopify admin > Online Store > Themes > ... > Edit code
+           1. Snippets > Add a new snippet > name it "affiliate-tracking", paste this file
+           2. In layout/theme.liquid, just before </body>, add:  {% render 'affiliate-tracking' %}
+           3. Change API_URL below to your deployed backend URL
+
+  What it does when someone arrives with ?ref=CODE:
+  - counts the click once per browser session
+  - saves the code on the cart, so the order is credited to the affiliate
+    even if the shopper removes the discount code at checkout
+{% endcomment %}
+<script>
+  (function () {
+    var API_URL = "https://YOUR-BACKEND-URL"; // e.g. https://xtovia-affiliate.onrender.com
+
+    var ref = new URLSearchParams(window.location.search).get("ref");
+    if (!ref || !/^[A-Za-z0-9]{1,40}$/.test(ref)) return;
+
+    var key = "xtovia_aff_" + ref;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch (e) {}
+
+    fetch(API_URL + "/api/track/click", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ ref: ref, path: window.location.pathname, referrer: document.referrer }),
+      keepalive: true,
+    }).catch(function () {});
+
+    fetch("/cart/update.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attributes: { affiliate_ref: ref.toUpperCase() } }),
+    }).catch(function () {});
+  })();
+</script>

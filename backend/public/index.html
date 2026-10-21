@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Xtovia Affiliate Link</title>
+  <style>
+    :root {
+      --bg: #f6f6f4;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --border: #dcdcd8;
+      --accent: #111111;
+      --accent-text: #ffffff;
+      --ok-bg: #eef7f0;
+      --ok-border: #b9dcc2;
+      --err: #b42318;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --card: #1c1c1c;
+        --text: #f2f2f2;
+        --muted: #a0a0a0;
+        --border: #333333;
+        --accent: #f2f2f2;
+        --accent-text: #111111;
+        --ok-bg: #16261b;
+        --ok-border: #2f5a3b;
+        --err: #ff8a80;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .sub { margin: 0 0 22px; color: var(--muted); font-size: 14px; }
+    label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 11px 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+    }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .error { color: var(--err); font-size: 14px; margin: 12px 0 0; min-height: 1em; }
+    .result {
+      display: none;
+      margin-top: 20px;
+      padding: 16px;
+      border: 1px solid var(--ok-border);
+      background: var(--ok-bg);
+      border-radius: 10px;
+    }
+    .result.show { display: block; }
+    .row { display: flex; gap: 8px; margin: 8px 0 10px; }
+    .row input { margin: 0; font-size: 14px; }
+    .row button { width: auto; padding: 0 14px; white-space: nowrap; }
+    .note { margin: 0; font-size: 13px; color: var(--muted); }
+    .warn { margin: 8px 0 0; font-size: 13px; color: var(--err); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Get your affiliate link</h1>
+    <p class="sub">Share it — every purchase through your link is counted for you, and your customers get a discount automatically.</p>
+
+    <form id="form" novalidate>
+      <label for="name">Name</label>
+      <input id="name" name="name" autocomplete="name" required />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" required />
+
+      <button id="submit" type="submit">Generate</button>
+      <p class="error" id="error" role="alert"></p>
+    </form>
+
+    <section class="result" id="result" aria-live="polite">
+      <strong>Your unique link</strong>
+      <div class="row">
+        <input id="link" readonly />
+        <button id="copy" type="button">Copy</button>
+      </div>
+      <p class="note" id="discountNote"></p>
+      <p class="warn" id="discountWarn"></p>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("form");
+    const submit = document.getElementById("submit");
+    const errorEl = document.getElementById("error");
+    const result = document.getElementById("result");
+    const linkEl = document.getElementById("link");
+    const copyBtn = document.getElementById("copy");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+      const name = form.name.value.trim();
+      const email = form.email.value.trim();
+      if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errorEl.textContent = "Please enter your name and a valid email.";
+        return;
+      }
+
+      submit.disabled = true;
+      submit.textContent = "Generating…";
+      try {
+        const res = await fetch("/api/links/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Something went wrong.");
+
+        linkEl.value = data.link;
+        document.getElementById("discountNote").textContent = data.discountCode
+          ? `Customers get ${data.discountPercent}% off automatically (code ${data.discountCode}).`
+          : "";
+        document.getElementById("discountWarn").textContent = data.discountError || "";
+        result.classList.add("show");
+        copyBtn.textContent = "Copy";
+      } catch (err) {
+        errorEl.textContent = err.message;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Generate";
+      }
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(linkEl.value);
+      } catch {
+        linkEl.select();
+        document.execCommand("copy");
+      }
+      copyBtn.textContent = "Copied";
+    });
+  </script>
+</body>
+</html>
