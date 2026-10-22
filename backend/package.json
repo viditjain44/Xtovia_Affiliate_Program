@@ -11,7 +11,8 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "create-admin": "node scripts/createAdmin.js",
-    "register-webhooks": "node scripts/registerWebhooks.js"
+    "register-webhooks": "node scripts/registerWebhooks.js",
+    "update-coupons": "node scripts/updateCouponRules.js"
   },
   "dependencies": {
     "abbrev": "^1.1.1",

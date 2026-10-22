@@ -7,10 +7,10 @@ const Click = require("../models/Click");
 const Commission = require("../models/Commission");
 const { requireAuth } = require("../middleware/auth");
 const { createAffiliateDiscount } = require("../services/shopifyDiscounts");
+const { buildAffiliateLink } = require("../services/affiliateLink");
+const { round2 } = require("../services/commissionCalculator");
 
 router.use(requireAuth("admin"));
-
-const { buildAffiliateLink } = require("../services/affiliateLink");
 
 // Turns "priya.sharma_" into "PRIYASHARMA", and adds a number if already taken
 async function generateRefCode(instagramUsername) {
@@ -108,6 +108,82 @@ router.get("/", async (req, res) => {
   try {
     const affiliates = await Affiliate.find().sort({ createdAt: -1 });
     res.json(affiliates);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET /api/affiliates/report - totals + one row per affiliate link
+// "Successful" affiliate = at least one order that wasn't cancelled / fully refunded
+router.get("/report", async (req, res) => {
+  try {
+    const [affiliates, orderStats, clickStats, returningStats] = await Promise.all([
+      Affiliate.find()
+        .select("fullName email refCode couponCode status createdAt")
+        .sort({ createdAt: -1 })
+        .lean(),
+      Commission.aggregate([
+        { $match: { status: { $ne: "REVERSED" } } },
+        {
+          $group: {
+            _id: "$affiliateId",
+            orders: { $sum: 1 },
+            sales: { $sum: { $subtract: ["$orderBase", "$refundedBase"] } },
+            commission: { $sum: "$amount" },
+            lastOrderAt: { $max: "$createdAt" },
+          },
+        },
+      ]),
+      Click.aggregate([{ $group: { _id: "$affiliateId", clicks: { $sum: 1 } } }]),
+      // Orders from customers who had bought before - recorded, but no commission
+      Commission.aggregate([
+        { $match: { isNewCustomer: false } },
+        { $group: { _id: "$affiliateId", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const ordersById = new Map(orderStats.map((s) => [String(s._id), s]));
+    const clicksById = new Map(clickStats.map((s) => [String(s._id), s.clicks]));
+    const returningById = new Map(returningStats.map((s) => [String(s._id), s.count]));
+
+    const rows = affiliates.map((a) => {
+      const o = ordersById.get(String(a._id));
+      const clicks = clicksById.get(String(a._id)) || 0;
+      const orders = o ? o.orders : 0;
+      return {
+        id: a._id,
+        name: a.fullName,
+        email: a.email,
+        refCode: a.refCode,
+        link: buildAffiliateLink(a),
+        status: a.status,
+        createdAt: a.createdAt,
+        clicks,
+        orders, // new-customer orders (the ones that earn commission)
+        returningCustomerOrders: returningById.get(String(a._id)) || 0,
+        conversionRate: clicks ? round2((orders / clicks) * 100) : 0, // %
+        sales: round2(o ? o.sales : 0), // product revenue after discounts, excl. tax/shipping
+        commission: round2(o ? o.commission : 0),
+        lastOrderAt: o ? o.lastOrderAt : null,
+      };
+    });
+
+    // Best performers first, then newest
+    rows.sort((x, y) => y.orders - x.orders || y.sales - x.sales);
+
+    res.json({
+      totals: {
+        linksGenerated: rows.length,
+        successfulAffiliates: rows.filter((r) => r.orders > 0).length,
+        orders: rows.reduce((sum, r) => sum + r.orders, 0),
+        returningCustomerOrders: rows.reduce((sum, r) => sum + r.returningCustomerOrders, 0),
+        clicks: rows.reduce((sum, r) => sum + r.clicks, 0),
+        sales: round2(rows.reduce((sum, r) => sum + r.sales, 0)),
+        commission: round2(rows.reduce((sum, r) => sum + r.commission, 0)),
+      },
+      affiliates: rows,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

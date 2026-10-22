@@ -43,8 +43,8 @@ app.use(
 app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
 app.use(express.json());
 
-// "Generate your affiliate link" page (public/index.html)
-app.use(express.static(path.join(__dirname, "public")));
+// "Generate your affiliate link" page (public/index.html) and admin report (/admin)
+app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"] }));
 
 app.get("/health", (req, res) => {
   res.send("Xtovia Affiliate API is running");

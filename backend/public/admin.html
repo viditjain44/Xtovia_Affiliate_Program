@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Affiliate Admin Report</title>
+  <style>
+    :root {
+      --bg: #f6f6f4;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --border: #e2e2de;
+      --accent: #111111;
+      --accent-text: #ffffff;
+      --good: #1f7a3a;
+      --err: #b42318;
+      --row-hover: #fafaf8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --card: #1c1c1c;
+        --text: #f2f2f2;
+        --muted: #a0a0a0;
+        --border: #2f2f2f;
+        --accent: #f2f2f2;
+        --accent-text: #111111;
+        --good: #6fd08c;
+        --err: #ff8a80;
+        --row-hover: #222222;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 22px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    button {
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    input {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--text);
+      font: inherit;
+    }
+
+    /* Login */
+    .login {
+      max-width: 380px;
+      margin: 10vh auto 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 24px;
+    }
+    .login h1 { margin-bottom: 18px; }
+    .login label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .login input { width: 100%; margin-bottom: 14px; }
+    .login button { width: 100%; padding: 12px; }
+    .error { color: var(--err); font-size: 14px; min-height: 1em; margin: 10px 0 0; }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .stat .label { color: var(--muted); font-size: 13px; }
+    .stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+    /* Table */
+    .panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .toolbar { display: flex; gap: 10px; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .toolbar input[type="search"] { flex: 1; min-width: 180px; }
+    .toolbar label { display: flex; gap: 6px; align-items: center; font-size: 14px; white-space: nowrap; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: var(--row-hover); }
+    tbody tr:last-child td { border-bottom: 0; }
+    .name { font-weight: 600; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    .copy { padding: 4px 10px; font-size: 12px; }
+    .ok { color: var(--good); font-weight: 600; }
+    .empty { padding: 32px; text-align: center; color: var(--muted); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <!-- Login -->
+  <section class="login" id="loginView" hidden>
+    <h1>Admin login</h1>
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <button type="submit" id="loginBtn">Log in</button>
+      <p class="error" id="loginError" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- Report -->
+  <main class="wrap" id="reportView" hidden>
+    <header>
+      <div>
+        <h1>Affiliate report</h1>
+        <div class="muted" id="updated"></div>
+      </div>
+      <div>
+        <button class="ghost" id="refresh">Refresh</button>
+        <button class="ghost" id="logout">Log out</button>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Links generated</div><div class="value" id="tLinks">–</div></div>
+      <div class="stat"><div class="label">Successful affiliates</div><div class="value" id="tSuccess">–</div></div>
+      <div class="stat"><div class="label">Orders (new customers)</div><div class="value" id="tOrders">–</div></div>
+      <div class="stat"><div class="label">Returning customers (no commission)</div><div class="value" id="tReturning">–</div></div>
+      <div class="stat"><div class="label">Clicks</div><div class="value" id="tClicks">–</div></div>
+      <div class="stat"><div class="label">Sales</div><div class="value" id="tSales">–</div></div>
+      <div class="stat"><div class="label">Commission</div><div class="value" id="tCommission">–</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search name, email or code" />
+        <label><input type="checkbox" id="onlySuccess" /> Only with orders</label>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Affiliate</th>
+              <th>Code</th>
+              <th>Link</th>
+              <th class="num">Clicks</th>
+              <th class="num">Orders</th>
+              <th class="num">Returning</th>
+              <th class="num">Conv.</th>
+              <th class="num">Sales</th>
+              <th class="num">Commission</th>
+              <th>Last order</th>
+              <th>Joined</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty" hidden>No affiliates match.</div>
+    </div>
+    <p class="muted">Orders = first-time customers only (these earn commission), excluding cancelled and fully refunded ones. Returning = customers who had bought before and used the code; no commission. Sales = product amount after discount, without tax and shipping. Successful affiliate = at least one order.</p>
+  </main>
+
+  <script>
+    const TOKEN_KEY = "xtovia_admin_token";
+    const $ = (id) => document.getElementById(id);
+    const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+    const count = new Intl.NumberFormat("en-IN");
+    const date = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "–");
+    let report = null;
+
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
+    function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+    function show(view) {
+      $("loginView").hidden = view !== "login";
+      $("reportView").hidden = view !== "report";
+    }
+
+    $("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("loginError").textContent = "";
+      $("loginBtn").disabled = true;
+      try {
+        const res = await fetch("/api/auth/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Login failed");
+        setToken(data.token);
+        $("password").value = "";
+        await load();
+      } catch (err) {
+        $("loginError").textContent = err.message;
+      } finally {
+        $("loginBtn").disabled = false;
+      }
+    });
+
+    $("logout").addEventListener("click", () => { setToken(null); show("login"); });
+    $("refresh").addEventListener("click", () => load());
+    $("search").addEventListener("input", render);
+    $("onlySuccess").addEventListener("change", render);
+
+    async function load() {
+      const token = getToken();
+      if (!token) return show("login");
+      const res = await fetch("/api/affiliates/report", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401 || res.status === 403) { setToken(null); return show("login"); }
+      if (!res.ok) { alert("Could not load the report"); return; }
+      report = await res.json();
+      const t = report.totals;
+      $("tLinks").textContent = count.format(t.linksGenerated);
+      $("tSuccess").textContent = count.format(t.successfulAffiliates);
+      $("tOrders").textContent = count.format(t.orders);
+      $("tReturning").textContent = count.format(t.returningCustomerOrders);
+      $("tClicks").textContent = count.format(t.clicks);
+      $("tSales").textContent = money.format(t.sales);
+      $("tCommission").textContent = money.format(t.commission);
+      $("updated").textContent = `Updated ${new Date().toLocaleTimeString("en-IN")}`;
+      show("report");
+      render();
+    }
+
+    // Builds rows with textContent so names/emails typed by the public can't inject HTML
+    function cell(text, className) {
+      const td = document.createElement("td");
+      if (className) td.className = className;
+      td.textContent = text;
+      return td;
+    }
+
+    function render() {
+      if (!report) return;
+      const q = $("search").value.trim().toLowerCase();
+      const only = $("onlySuccess").checked;
+      const list = report.affiliates.filter((a) =>
+        (!only || a.orders > 0) &&
+        (!q || a.name.toLowerCase().includes(q) || a.email.includes(q) || a.refCode.toLowerCase().includes(q))
+      );
+
+      const tbody = $("rows");
+      tbody.replaceChildren();
+      for (const a of list) {
+        const tr = document.createElement("tr");
+
+        const who = document.createElement("td");
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = a.name + (a.status !== "ACTIVE" ? ` (${a.status.toLowerCase()})` : "");
+        const email = document.createElement("div");
+        email.className = "muted";
+        email.textContent = a.email;
+        who.append(name, email);
+
+        const linkTd = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.className = "ghost copy";
+        btn.textContent = "Copy link";
+        btn.title = a.link;
+        btn.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(a.link); btn.textContent = "Copied"; }
+          catch { prompt("Copy this link", a.link); }
+        });
+        linkTd.append(btn);
+
+        tr.append(
+          who,
+          cell(a.refCode, "code"),
+          linkTd,
+          cell(count.format(a.clicks), "num"),
+          cell(count.format(a.orders), "num" + (a.orders ? " ok" : "")),
+          cell(count.format(a.returningCustomerOrders), "num"),
+          cell(`${a.conversionRate}%`, "num"),
+          cell(money.format(a.sales), "num"),
+          cell(money.format(a.commission), "num"),
+          cell(date(a.lastOrderAt)),
+          cell(date(a.createdAt))
+        );
+        tbody.append(tr);
+      }
+      $("empty").hidden = list.length > 0;
+    }
+
+    load();
+  </script>
+</body>
+</html>

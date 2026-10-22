@@ -19,6 +19,9 @@ const CommissionSchema = new mongoose.Schema(
     taxesIncluded: { type: Boolean, default: false },
     customerEmail: { type: String, lowercase: true },
     source: { type: String, enum: ["LINK", "COUPON"], required: true },
+    // Commission is only paid for a customer's first order on the store
+    // (false = returning customer, recorded as REVERSED with 0 commission; null = couldn't check)
+    isNewCustomer: { type: Boolean, default: null },
 
     // Commission
     commissionRate: { type: Number, required: true }, // rate at time of order

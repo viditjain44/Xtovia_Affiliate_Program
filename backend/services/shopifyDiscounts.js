@@ -1,5 +1,13 @@
 const { shopifyGraphQL } = require("../config/shopify");
 
+// Every affiliate coupon: open to all buyers (first-time buyers have no Shopify customer
+// profile yet, so segment-limited discounts would block them), but one use per customer.
+// "New customers only" is enforced on the commission side - see services/customerHistory.js
+const ELIGIBILITY = {
+  context: { all: "ALL" },
+  appliesOncePerCustomer: true,
+};
+
 const CREATE_DISCOUNT = `
   mutation CreateAffiliateDiscount($basicCodeDiscount: DiscountCodeBasicInput!) {
     discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
@@ -9,6 +17,23 @@ const CREATE_DISCOUNT = `
   }
 `;
 
+const UPDATE_DISCOUNT = `
+  mutation UpdateAffiliateDiscount($id: ID!, $basicCodeDiscount: DiscountCodeBasicInput!) {
+    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $basicCodeDiscount) {
+      codeDiscountNode {
+        codeDiscount { ... on DiscountCodeBasic { title appliesOncePerCustomer } }
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
+function throwUserErrors(result) {
+  if (result.userErrors && result.userErrors.length) {
+    throw new Error(result.userErrors.map((e) => e.message).join("; "));
+  }
+}
+
 // Creates a "% off everything" discount code in Shopify and returns its id
 // (needs the write_discounts access scope)
 async function createAffiliateDiscount({ code, title, percent }) {
@@ -17,20 +42,29 @@ async function createAffiliateDiscount({ code, title, percent }) {
       title,
       code,
       startsAt: new Date().toISOString(),
-      customerSelection: { all: true },
       customerGets: {
         value: { percentage: percent / 100 },
         items: { all: true },
       },
-      appliesOncePerCustomer: false,
+      ...ELIGIBILITY,
     },
   });
 
   const result = data.discountCodeBasicCreate;
-  if (result.userErrors && result.userErrors.length) {
-    throw new Error(result.userErrors.map((e) => e.message).join("; "));
-  }
+  throwUserErrors(result);
   return result.codeDiscountNode.id;
 }
 
-module.exports = { createAffiliateDiscount };
+// Brings an existing affiliate coupon in line with the current rules (one use per customer)
+async function applyEligibilityRules(discountId) {
+  const data = await shopifyGraphQL(UPDATE_DISCOUNT, {
+    id: discountId,
+    basicCodeDiscount: ELIGIBILITY,
+  });
+
+  const result = data.discountCodeBasicUpdate;
+  throwUserErrors(result);
+  return result.codeDiscountNode.codeDiscount;
+}
+
+module.exports = { createAffiliateDiscount, applyEligibilityRules };

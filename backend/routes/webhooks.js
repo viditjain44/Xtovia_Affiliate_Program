@@ -3,6 +3,7 @@ const router = express.Router();
 const Affiliate = require("../models/Affiliate");
 const Commission = require("../models/Commission");
 const verifyShopifyWebhook = require("../middleware/verifyShopifyWebhook");
+const { checkFirstOrder } = require("../services/customerHistory");
 const {
   round2,
   getOrderBase,
@@ -40,9 +41,23 @@ router.post("/orders-paid", async (req, res) => {
       return res.status(200).send("No active affiliate on this order");
     }
 
+    // Already handled? (Shopify sometimes sends the same webhook twice)
+    if (await Commission.exists({ shopifyOrderId: String(order.id) })) {
+      return res.status(200).send("Already recorded");
+    }
+
     const orderBase = getOrderBase(order);
     const customerEmail = (order.email || "").toLowerCase();
     const isSelfReferral = customerEmail && customerEmail === affiliate.email;
+
+    // Affiliates only earn on new customers. If Shopify can't be reached this throws,
+    // we answer 500 and Shopify retries the webhook later.
+    const firstOrder = await checkFirstOrder(order);
+    const returning = firstOrder.isNew === false;
+
+    let flagReason;
+    if (isSelfReferral) flagReason = "Creator bought with their own link/code";
+    else if (firstOrder.isNew === null) flagReason = `Couldn't confirm new customer: ${firstOrder.reason}`;
 
     await Commission.create({
       affiliateId: affiliate._id,
@@ -54,13 +69,15 @@ router.post("/orders-paid", async (req, res) => {
       taxesIncluded: Boolean(order.taxes_included),
       customerEmail,
       source,
+      isNewCustomer: firstOrder.isNew,
       commissionRate: affiliate.commissionRate,
-      amount: calculateCommission(orderBase, affiliate.commissionRate),
-      flagged: Boolean(isSelfReferral),
-      flagReason: isSelfReferral ? "Creator bought with their own link/code" : undefined,
+      amount: returning ? 0 : calculateCommission(orderBase, affiliate.commissionRate),
+      ...(returning
+        ? { status: "REVERSED", reversedReason: "Returning customer - no commission" }
+        : { flagged: Boolean(flagReason), flagReason }),
     });
 
-    res.status(200).send("Commission recorded");
+    res.status(200).send(returning ? "Returning customer - no commission" : "Commission recorded");
   } catch (err) {
     // Shopify sometimes sends the same webhook twice - ignore the duplicate
     if (err.code === 11000) return res.status(200).send("Already recorded");
