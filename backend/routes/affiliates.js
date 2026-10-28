@@ -143,9 +143,17 @@ router.get("/report", async (req, res) => {
         },
       ]),
       Click.aggregate([{ $group: { _id: "$affiliateId", clicks: { $sum: 1 } } }]),
-      // Orders from customers who had bought before - recorded, but no commission
+      // Orders from customers who had bought before (left out: cancelled / fully refunded)
       Commission.aggregate([
-        { $match: { isNewCustomer: false } },
+        {
+          $match: {
+            isNewCustomer: false,
+            $or: [
+              { status: { $ne: "REVERSED" } },
+              { reversedReason: "Returning customer - no commission" },
+            ],
+          },
+        },
         { $group: { _id: "$affiliateId", count: { $sum: 1 } } },
       ]),
     ]);
@@ -167,7 +175,7 @@ router.get("/report", async (req, res) => {
         status: a.status,
         createdAt: a.createdAt,
         clicks,
-        orders, // new-customer orders (the ones that earn commission)
+        orders, // orders that earn commission
         returningCustomerOrders: returningById.get(String(a._id)) || 0,
         conversionRate: clicks ? round2((orders / clicks) * 100) : 0, // %
         sales: round2(o ? o.sales : 0), // product revenue after discounts, excl. tax/shipping

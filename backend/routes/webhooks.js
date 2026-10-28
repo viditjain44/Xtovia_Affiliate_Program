@@ -50,14 +50,24 @@ router.post("/orders-paid", async (req, res) => {
     const customerEmail = (order.email || "").toLowerCase();
     const isSelfReferral = customerEmail && customerEmail === affiliate.email;
 
-    // Affiliates only earn on new customers. If Shopify can't be reached this throws,
-    // we answer 500 and Shopify retries the webhook later.
-    const firstOrder = await checkFirstOrder(order);
-    const returning = firstOrder.isNew === false;
+    // New vs returning customer. By default this is only recorded for the report;
+    // with COMMISSION_NEW_CUSTOMERS_ONLY=true returning customers earn no commission.
+    const newCustomersOnly = process.env.COMMISSION_NEW_CUSTOMERS_ONLY === "true";
+    let firstOrder = { isNew: null, reason: "Not checked" };
+    try {
+      firstOrder = await checkFirstOrder(order);
+    } catch (err) {
+      // Only matters when it decides the commission - then Shopify retries the webhook
+      if (newCustomersOnly) throw err;
+      console.error("[orders-paid] customer check:", err.message);
+    }
+    const returning = newCustomersOnly && firstOrder.isNew === false;
 
     let flagReason;
     if (isSelfReferral) flagReason = "Creator bought with their own link/code";
-    else if (firstOrder.isNew === null) flagReason = `Couldn't confirm new customer: ${firstOrder.reason}`;
+    else if (newCustomersOnly && firstOrder.isNew === null) {
+      flagReason = `Couldn't confirm new customer: ${firstOrder.reason}`;
+    }
 
     await Commission.create({
       affiliateId: affiliate._id,
