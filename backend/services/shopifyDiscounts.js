@@ -1,5 +1,16 @@
 const { shopifyGraphQL } = require("../config/shopify");
 
+// Customer discount for affiliate coupons, from COUPON_DISCOUNT_PERCENT (default 10).
+// 0 = tracking-only: no coupons are created and links carry no discount
+function couponPercent() {
+  const percent = Number(process.env.COUPON_DISCOUNT_PERCENT ?? 10);
+  return Number.isFinite(percent) && percent > 0 ? percent : 0;
+}
+
+function couponsEnabled() {
+  return couponPercent() > 0;
+}
+
 // Every affiliate coupon: open to all buyers (first-time buyers have no Shopify customer
 // profile yet, so segment-limited discounts would block them), but one use per customer.
 // "New customers only" is enforced on the commission side - see services/customerHistory.js
@@ -67,4 +78,4 @@ async function applyEligibilityRules(discountId) {
   return result.codeDiscountNode.codeDiscount;
 }
 
-module.exports = { createAffiliateDiscount, applyEligibilityRules };
+module.exports = { createAffiliateDiscount, applyEligibilityRules, couponPercent, couponsEnabled };

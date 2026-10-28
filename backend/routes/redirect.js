@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Affiliate = require("../models/Affiliate");
 const Click = require("../models/Click");
+const { couponsEnabled } = require("../services/shopifyDiscounts");
 
 // GET /r/:refCode
 // Optional: /r/:refCode?to=/products/some-product  (deep link to a product page)
@@ -38,7 +39,7 @@ router.get("/:refCode", async (req, res) => {
 
     // Shopify's /discount/CODE page saves the code in the visitor's session (it's applied
     // automatically at checkout) and then forwards them to the page in ?redirect=
-    if (affiliate.couponCode) {
+    if (couponsEnabled() && affiliate.couponCode) {
       const discountUrl = new URL(`/discount/${encodeURIComponent(affiliate.couponCode)}`, storeUrl);
       discountUrl.searchParams.set("redirect", `${target.pathname}${target.search}`);
       return res.redirect(discountUrl.toString());

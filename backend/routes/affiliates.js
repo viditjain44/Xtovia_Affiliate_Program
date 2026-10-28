@@ -6,7 +6,11 @@ const Affiliate = require("../models/Affiliate");
 const Click = require("../models/Click");
 const Commission = require("../models/Commission");
 const { requireAuth } = require("../middleware/auth");
-const { createAffiliateDiscount } = require("../services/shopifyDiscounts");
+const {
+  createAffiliateDiscount,
+  couponPercent,
+  couponsEnabled,
+} = require("../services/shopifyDiscounts");
 const { buildAffiliateLink } = require("../services/affiliateLink");
 const { round2 } = require("../services/commissionCalculator");
 
@@ -29,7 +33,10 @@ async function generateRefCode(instagramUsername) {
 
 // Creates the creator's Shopify coupon and saves it on the affiliate
 async function addCoupon(affiliate) {
-  const percent = Number(process.env.COUPON_DISCOUNT_PERCENT || 10);
+  if (!couponsEnabled()) {
+    throw new Error("Coupons are turned off (COUPON_DISCOUNT_PERCENT=0)");
+  }
+  const percent = couponPercent();
   const code = `${affiliate.refCode}${percent}`; // e.g. PRIYASHARMA10
 
   const discountId = await createAffiliateDiscount({

@@ -5,35 +5,65 @@
            2. In layout/theme.liquid, just before </body>, add:  {% render 'affiliate-tracking' %}
            3. Change API_URL below to your deployed backend URL
 
-  What it does when someone arrives with ?ref=CODE:
-  - counts the click once per browser session
-  - saves the code on the cart, so the order is credited to the affiliate
-    even if the shopper removes the discount code at checkout
+  Rules:
+  - Arriving with ?ref=CODE counts a click (once per browser session) and remembers the
+    affiliate for ATTRIBUTION_DAYS. A later click on another affiliate's link replaces it
+    (last click wins) and restarts the window.
+  - On every page view while remembered, the code is saved on the cart (attribute
+    "affiliate_ref"), so the order is credited to the affiliate - even if they buy days later.
+    Once the window is over the tag is removed from the cart again.
 {% endcomment %}
 <script>
   (function () {
     var API_URL = "https://YOUR-BACKEND-URL"; // e.g. https://xtovia-affiliate.onrender.com
+    var ATTRIBUTION_DAYS = 7;
+    var COOKIE = "xtovia_aff_ref";
 
-    var ref = new URLSearchParams(window.location.search).get("ref");
-    if (!ref || !/^[A-Za-z0-9]{1,40}$/.test(ref)) return;
+    function readCookie() {
+      var m = document.cookie.match(new RegExp("(?:^|; )" + COOKIE + "=([A-Z0-9]{1,40})"));
+      return m ? m[1] : null;
+    }
+    function writeCookie(ref) {
+      document.cookie = COOKIE + "=" + ref + "; path=/; max-age=" + ATTRIBUTION_DAYS * 86400 + "; SameSite=Lax";
+    }
 
-    var key = "xtovia_aff_" + ref;
-    try {
-      if (sessionStorage.getItem(key)) return;
-      sessionStorage.setItem(key, "1");
-    } catch (e) {}
+    var fromUrl = new URLSearchParams(window.location.search).get("ref");
+    if (fromUrl && /^[A-Za-z0-9]{1,40}$/.test(fromUrl)) {
+      fromUrl = fromUrl.toUpperCase();
+      writeCookie(fromUrl); // last click wins, window restarts
 
-    fetch(API_URL + "/api/track/click", {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ ref: ref, path: window.location.pathname, referrer: document.referrer }),
-      keepalive: true,
-    }).catch(function () {});
+      var key = "xtovia_aff_click_" + fromUrl;
+      var counted = false;
+      try {
+        counted = !!sessionStorage.getItem(key);
+        sessionStorage.setItem(key, "1");
+      } catch (e) {}
+      if (!counted) {
+        fetch(API_URL + "/api/track/click", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ ref: fromUrl, path: window.location.pathname, referrer: document.referrer }),
+          keepalive: true,
+        }).catch(function () {});
+      }
+    }
 
-    fetch("/cart/update.js", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attributes: { affiliate_ref: ref.toUpperCase() } }),
-    }).catch(function () {});
+    // Remembered affiliate, or "" once the window is over (an empty value removes the
+    // tag from a cart that still has it, so late purchases aren't credited)
+    var ref = readCookie() || "";
+
+    // Only touch the cart when its tag doesn't already match
+    fetch("/cart.js", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (cart) {
+        var current = (cart && cart.attributes && cart.attributes.affiliate_ref) || "";
+        if (current === ref) return;
+        return fetch("/cart/update.js", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attributes: { affiliate_ref: ref } }),
+        });
+      })
+      .catch(function () {});
   })();
 </script>

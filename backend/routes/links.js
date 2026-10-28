@@ -2,12 +2,16 @@ const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
 const Affiliate = require("../models/Affiliate");
-const { createAffiliateDiscount } = require("../services/shopifyDiscounts");
+const {
+  createAffiliateDiscount,
+  couponPercent,
+  couponsEnabled,
+} = require("../services/shopifyDiscounts");
 const { buildAffiliateLink } = require("../services/affiliateLink");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Very small per-IP limit so nobody can spam Shopify with discount codes
+// Very small per-IP limit so nobody can spam sign-ups (and Shopify discount codes)
 const RATE_LIMIT = 10; // requests
 const RATE_WINDOW_MS = 60 * 60 * 1000; // per hour
 const hits = new Map();
@@ -42,14 +46,14 @@ async function generateUniqueRefCode(name) {
 }
 
 // Creates the Shopify discount for this affiliate; the code is the same as their refCode
+// (skipped in tracking-only mode)
 async function ensureDiscount(affiliate) {
-  if (affiliate.couponCode) return;
+  if (!couponsEnabled() || affiliate.couponCode) return;
 
-  const percent = Number(process.env.COUPON_DISCOUNT_PERCENT || 10);
   const discountId = await createAffiliateDiscount({
     code: affiliate.refCode,
     title: `Affiliate - ${affiliate.fullName} (${affiliate.refCode})`,
-    percent,
+    percent: couponPercent(),
   });
 
   affiliate.couponCode = affiliate.refCode;
@@ -93,8 +97,8 @@ router.post("/generate", async (req, res) => {
       email: affiliate.email,
       refCode: affiliate.refCode,
       link: buildAffiliateLink(affiliate),
-      discountCode: affiliate.couponCode || null,
-      discountPercent: Number(process.env.COUPON_DISCOUNT_PERCENT || 10),
+      discountCode: couponsEnabled() ? affiliate.couponCode || null : null,
+      discountPercent: couponPercent(),
       ...(discountError && { discountError }),
     });
   } catch (err) {
