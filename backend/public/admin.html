@@ -142,7 +142,7 @@
 
     <div class="panel">
       <div class="toolbar">
-        <input id="search" type="search" placeholder="Search name, email or code" />
+        <input id="search" type="search" placeholder="Search name, email, mobile or code" />
         <label><input type="checkbox" id="onlySuccess" /> Only with orders</label>
       </div>
       <div class="table-scroll">
@@ -247,7 +247,7 @@
       const only = $("onlySuccess").checked;
       const list = report.affiliates.filter((a) =>
         (!only || a.orders > 0) &&
-        (!q || a.name.toLowerCase().includes(q) || a.email.includes(q) || a.refCode.toLowerCase().includes(q))
+        (!q || a.name.toLowerCase().includes(q) || a.email.includes(q) || (a.mobile || "").includes(q) || a.refCode.toLowerCase().includes(q))
       );
 
       const tbody = $("rows");
@@ -263,6 +263,12 @@
         email.className = "muted";
         email.textContent = a.email;
         who.append(name, email);
+        if (a.mobile) {
+          const mobile = document.createElement("div");
+          mobile.className = "muted";
+          mobile.textContent = a.mobile;
+          who.append(mobile);
+        }
 
         const linkTd = document.createElement("td");
         const btn = document.createElement("button");

@@ -11,7 +11,9 @@ const AffiliateSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
-    // Optional: people signing up from the public "generate link" page only give name + email
+    // Indian mobile, saved as "+91XXXXXXXXXX" (affiliates created before this field have none)
+    mobile: { type: String, trim: true },
+    // Optional: people signing up from the public "generate link" page don't give this
     instagramUsername: { type: String, trim: true },
 
     // Login (never returned in queries unless asked for)

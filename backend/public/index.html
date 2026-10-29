@@ -105,6 +105,9 @@
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="email" required />
 
+      <label for="mobile">Mobile number</label>
+      <input id="mobile" name="mobile" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="10-digit mobile number" maxlength="16" required />
+
       <button id="submit" type="submit">Generate</button>
       <p class="error" id="error" role="alert"></p>
     </form>
@@ -137,6 +140,13 @@
         errorEl.textContent = "Please enter your name and a valid email.";
         return;
       }
+      // Same rule as the server: 10 digits starting 6-9, optional +91 / 0 in front
+      const mobile = form.mobile.value.trim();
+      const digits = mobile.replace(/\D/g, "").replace(/^(91(?=\d{10}$)|0(?=\d{10}$))/, "");
+      if (!/^[6-9]\d{9}$/.test(digits)) {
+        errorEl.textContent = "Please enter a valid 10-digit mobile number.";
+        return;
+      }
 
       submit.disabled = true;
       submit.textContent = "Generating…";
@@ -144,7 +154,7 @@
         const res = await fetch("/api/links/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email }),
+          body: JSON.stringify({ name, email, mobile }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || "Something went wrong.");

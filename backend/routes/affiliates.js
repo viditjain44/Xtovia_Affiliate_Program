@@ -127,7 +127,7 @@ router.get("/report", async (req, res) => {
   try {
     const [affiliates, orderStats, clickStats, returningStats] = await Promise.all([
       Affiliate.find()
-        .select("fullName email refCode couponCode status createdAt")
+        .select("fullName email mobile refCode couponCode status createdAt")
         .sort({ createdAt: -1 })
         .lean(),
       Commission.aggregate([
@@ -170,6 +170,7 @@ router.get("/report", async (req, res) => {
         id: a._id,
         name: a.fullName,
         email: a.email,
+        mobile: a.mobile || null,
         refCode: a.refCode,
         link: buildAffiliateLink(a),
         status: a.status,
@@ -212,7 +213,7 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid affiliate id" });
     }
 
-    const allowed = ["fullName", "email", "commissionRate", "status"];
+    const allowed = ["fullName", "email", "mobile", "commissionRate", "status"];
     const update = {};
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) update[key] = req.body[key];

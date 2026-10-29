@@ -11,6 +11,14 @@ const { buildAffiliateLink } = require("../services/affiliateLink");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// "98765 43210", "+91-9876543210", "09876543210" -> "+919876543210"; null if not a valid Indian mobile
+function normalizeMobile(input) {
+  let digits = String(input || "").replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  return /^[6-9]\d{9}$/.test(digits) ? `+91${digits}` : null;
+}
+
 // Very small per-IP limit so nobody can spam sign-ups (and Shopify discount codes)
 const RATE_LIMIT = 10; // requests
 const RATE_WINDOW_MS = 60 * 60 * 1000; // per hour
@@ -61,15 +69,19 @@ async function ensureDiscount(affiliate) {
   await affiliate.save();
 }
 
-// POST /api/links/generate - public: body { name, email }
+// POST /api/links/generate - public: body { name, email, mobile }
 // Same email again returns the same link (and retries the discount if it failed before)
 router.post("/generate", async (req, res) => {
   try {
     const name = String(req.body?.name || "").trim();
     const email = String(req.body?.email || "").trim().toLowerCase();
+    const mobile = normalizeMobile(req.body?.mobile);
 
     if (!name || !EMAIL_RE.test(email)) {
       return res.status(400).json({ message: "Please enter your name and a valid email." });
+    }
+    if (!mobile) {
+      return res.status(400).json({ message: "Please enter a valid 10-digit mobile number." });
     }
     if (rateLimited(req.ip)) {
       return res.status(429).json({ message: "Too many requests, please try again later." });
@@ -80,8 +92,13 @@ router.post("/generate", async (req, res) => {
       affiliate = await Affiliate.create({
         fullName: name,
         email,
+        mobile,
         refCode: await generateUniqueRefCode(name),
       });
+    } else if (!affiliate.mobile) {
+      // Affiliates from before mobile was asked for get it filled in now
+      affiliate.mobile = mobile;
+      await affiliate.save();
     }
 
     let discountError = null;
@@ -95,6 +112,7 @@ router.post("/generate", async (req, res) => {
     res.json({
       name: affiliate.fullName,
       email: affiliate.email,
+      mobile: affiliate.mobile,
       refCode: affiliate.refCode,
       link: buildAffiliateLink(affiliate),
       discountCode: couponsEnabled() ? affiliate.couponCode || null : null,
