@@ -40,7 +40,7 @@ router.patch("/:id/approve", async (req, res) => {
     const commission = await Commission.findOneAndUpdate(
       { _id: req.params.id, status: "PENDING" },
       { status: "APPROVED", approvedAt: new Date(), flagged: false },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!commission) {
       return res.status(400).json({ message: "Only pending commissions can be approved." });
@@ -63,7 +63,7 @@ router.patch("/:id/reverse", async (req, res) => {
     const commission = await Commission.findOneAndUpdate(
       { _id: req.params.id, status: { $in: ["PENDING", "APPROVED"] } },
       { status: "REVERSED", reversedReason: req.body.reason || "Reversed by admin" },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!commission) {
       return res
@@ -88,7 +88,7 @@ router.patch("/:id/resolve", async (req, res) => {
     const commission = await Commission.findByIdAndUpdate(
       req.params.id,
       { needsReview: false },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!commission) return res.status(404).json({ message: "Commission not found" });
 

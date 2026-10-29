@@ -220,7 +220,7 @@ router.patch("/:id", async (req, res) => {
     });
 
     const affiliate = await Affiliate.findByIdAndUpdate(req.params.id, update, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
     if (!affiliate) return res.status(404).json({ message: "Affiliate not found" });

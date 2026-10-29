@@ -7,21 +7,66 @@ const Commission = require("../models/Commission");
 const Payout = require("../models/Payout");
 const { requireAuth } = require("../middleware/auth");
 const { round2 } = require("../services/commissionCalculator");
+const { buildAffiliateLink } = require("../services/affiliateLink");
+const { normalizeMobile } = require("../services/mobile");
 
 router.use(requireAuth("creator"));
 
-const { buildAffiliateLink } = require("../services/affiliateLink");
+// Only what the affiliate should see about themselves
+function profileOf(affiliate) {
+  return {
+    fullName: affiliate.fullName,
+    email: affiliate.email,
+    mobile: affiliate.mobile || null,
+    refCode: affiliate.refCode,
+    commissionRate: affiliate.commissionRate,
+    status: affiliate.status,
+    payoutDetails: affiliate.payoutDetails || {},
+    createdAt: affiliate.createdAt,
+  };
+}
 
-// GET /api/creator/me - profile, link and coupon
+// GET /api/creator/me - profile and link
 router.get("/me", async (req, res) => {
   try {
     const affiliate = await Affiliate.findById(req.user.id);
     if (!affiliate) return res.status(404).json({ message: "Account not found" });
 
     res.json({
-      affiliate,
+      affiliate: profileOf(affiliate),
       trackingLink: buildAffiliateLink(affiliate),
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// PATCH /api/creator/me - body { fullName?, mobile? } (email is the login, so it can't change here)
+router.patch("/me", async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.fullName !== undefined) {
+      const fullName = String(req.body.fullName).trim();
+      if (!fullName || fullName.length > 80) {
+        return res.status(400).json({ message: "Please enter your name." });
+      }
+      update.fullName = fullName;
+    }
+    if (req.body.mobile !== undefined) {
+      const mobile = normalizeMobile(req.body.mobile);
+      if (!mobile) {
+        return res.status(400).json({ message: "Please enter a valid 10-digit mobile number." });
+      }
+      update.mobile = mobile;
+    }
+
+    const affiliate = await Affiliate.findByIdAndUpdate(req.user.id, update, {
+      returnDocument: "after",
+      runValidators: true,
+    });
+    if (!affiliate) return res.status(404).json({ message: "Account not found" });
+    res.json({ message: "Profile saved", affiliate: profileOf(affiliate) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -70,7 +115,8 @@ router.get("/stats", async (req, res) => {
 router.get("/commissions", async (req, res) => {
   try {
     const commissions = await Commission.find({ affiliateId: req.user.id })
-      .select("-customerEmail -flagReason -processedRefundIds") // keep customer data private
+      // keep customer data and internal review notes private
+      .select("orderName orderBase refundedBase currency commissionRate amount status createdAt approvedAt paidAt")
       .sort({ createdAt: -1 })
       .limit(200);
     res.json(commissions);
@@ -96,14 +142,25 @@ router.get("/payouts", async (req, res) => {
 // PATCH /api/creator/payout-details - save UPI / bank details
 router.patch("/payout-details", async (req, res) => {
   try {
-    const allowed = ["upiId", "accountHolderName", "accountNumber", "ifsc"];
+    // Empty string clears a field
+    const rules = {
+      upiId: [/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/, "Please enter a valid UPI ID, e.g. name@okaxis."],
+      accountHolderName: [/^.{2,80}$/, "Please enter the account holder's name."],
+      accountNumber: [/^\d{9,18}$/, "Account number should be 9 to 18 digits."],
+      ifsc: [/^[A-Z]{4}0[A-Z0-9]{6}$/, "Please enter a valid IFSC code, e.g. HDFC0001234."],
+    };
     const update = {};
-    allowed.forEach((key) => {
-      if (req.body[key] !== undefined) update[`payoutDetails.${key}`] = req.body[key];
-    });
+    for (const [key, [re, message]] of Object.entries(rules)) {
+      if (req.body[key] === undefined) continue;
+      let value = String(req.body[key]).trim();
+      if (key === "ifsc") value = value.toUpperCase();
+      if (key === "accountNumber") value = value.replace(/\s/g, "");
+      if (value && !re.test(value)) return res.status(400).json({ message });
+      update[`payoutDetails.${key}`] = value;
+    }
 
     const affiliate = await Affiliate.findByIdAndUpdate(req.user.id, update, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
     res.json({ message: "Payout details saved", payoutDetails: affiliate.payoutDetails });

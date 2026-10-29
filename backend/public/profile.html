@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Affiliate Profile</title>
+  <style>
+    :root {
+      --bg: #f6f6f4;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --muted: #6b6b6b;
+      --border: #dcdcd8;
+      --accent: #111111;
+      --accent-text: #ffffff;
+      --good: #1f7a3a;
+      --err: #b42318;
+      --ok-bg: #eef7f0;
+      --ok-border: #b9dcc2;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --card: #1c1c1c;
+        --text: #f2f2f2;
+        --muted: #a0a0a0;
+        --border: #333333;
+        --accent: #f2f2f2;
+        --accent-text: #111111;
+        --good: #6fd08c;
+        --err: #ff8a80;
+        --ok-bg: #16261b;
+        --ok-border: #2f5a3b;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 20px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0; font-size: 22px; }
+    h2 { margin: 0 0 14px; font-size: 17px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+    }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[readonly] { color: var(--muted); }
+    button {
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    button.link { background: none; color: var(--text); padding: 0; text-decoration: underline; font-weight: 500; }
+    .error { color: var(--err); font-size: 14px; margin: 8px 0 0; min-height: 1em; }
+    .saved { color: var(--good); font-size: 14px; margin: 8px 0 0; min-height: 1em; }
+    [hidden] { display: none !important; }
+
+    /* Login */
+    .login { max-width: 400px; margin: 10vh auto 0; }
+    .login h1 { margin-bottom: 4px; }
+    .login .sub { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+    .login button[type="submit"] { width: 100%; padding: 12px; }
+    #code { font-size: 22px; letter-spacing: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+    .row-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; font-size: 14px; }
+
+    /* Dashboard */
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .linkbox { display: flex; gap: 8px; }
+    .linkbox input { margin: 0; font-size: 14px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .stat .label { color: var(--muted); font-size: 13px; }
+    .stat .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+    .table-scroll { overflow-x: auto; margin: 0 -20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 10px 20px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
+    .badge.APPROVED, .badge.PAID { color: var(--good); border-color: var(--ok-border); background: var(--ok-bg); }
+    .badge.REVERSED { color: var(--muted); }
+    .empty { padding: 20px 0 4px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <!-- Login: step 1 email, step 2 code -->
+  <section class="card login" id="loginView" hidden>
+    <h1>Affiliate login</h1>
+    <p class="sub" id="loginSub">Enter the email you used to get your affiliate link. We'll email you a login code.</p>
+
+    <form id="emailForm" novalidate>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" required />
+      <button type="submit" id="sendBtn">Send code</button>
+      <p class="error" id="emailError" role="alert"></p>
+    </form>
+
+    <form id="codeForm" novalidate hidden>
+      <label for="code">6-digit code</label>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required />
+      <button type="submit" id="verifyBtn">Log in</button>
+      <p class="error" id="codeError" role="alert"></p>
+      <div class="row-between">
+        <button type="button" class="link" id="changeEmail">Use another email</button>
+        <button type="button" class="link" id="resend" disabled>Resend code</button>
+      </div>
+    </form>
+
+    <p class="muted" style="margin-top:18px">Don't have a link yet? <a href="/" style="color:inherit">Get your affiliate link</a></p>
+  </section>
+
+  <!-- Profile -->
+  <main class="wrap" id="profileView" hidden>
+    <header>
+      <div>
+        <h1 id="hello">My profile</h1>
+        <div class="muted" id="since"></div>
+      </div>
+      <button class="ghost" id="logout">Log out</button>
+    </header>
+
+    <section class="card">
+      <h2>My affiliate link</h2>
+      <div class="linkbox">
+        <input id="myLink" readonly />
+        <button id="copyLink" type="button">Copy</button>
+      </div>
+      <p class="muted" id="rateNote" style="margin:10px 0 0"></p>
+    </section>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Clicks</div><div class="value" id="sClicks">–</div></div>
+      <div class="stat"><div class="label">Orders</div><div class="value" id="sOrders">–</div></div>
+      <div class="stat"><div class="label">Pending</div><div class="value" id="sPending">–</div></div>
+      <div class="stat"><div class="label">Approved</div><div class="value" id="sApproved">–</div></div>
+      <div class="stat"><div class="label">Paid</div><div class="value" id="sPaid">–</div></div>
+    </div>
+
+    <section class="card">
+      <h2>My orders</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Date</th>
+              <th class="num">Order amount</th>
+              <th class="num">Commission</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="orders"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="noOrders" hidden>No orders yet. Share your link to get started.</div>
+      <p class="muted" style="margin:14px 0 0">Pending = inside the 7-day return window. Approved = ready to be paid. Order amount is the product price after discounts, without tax and shipping.</p>
+    </section>
+
+    <section class="card">
+      <h2>My details</h2>
+      <form id="detailsForm" novalidate>
+        <div class="grid2">
+          <div><label for="pName">Name</label><input id="pName" autocomplete="name" maxlength="80" required /></div>
+          <div><label for="pMobile">Mobile number</label><input id="pMobile" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="16" /></div>
+        </div>
+        <label for="pEmail">Email</label>
+        <input id="pEmail" readonly />
+        <button type="submit" id="saveDetails">Save details</button>
+        <p class="error" id="detailsError" role="alert"></p>
+        <p class="saved" id="detailsSaved" role="status"></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Payout details</h2>
+      <p class="muted" style="margin:-6px 0 14px">Where we send your commission. Fill in a UPI ID, bank details, or both.</p>
+      <form id="payoutForm" novalidate>
+        <label for="upiId">UPI ID</label>
+        <input id="upiId" placeholder="name@okaxis" autocomplete="off" />
+        <div class="grid2">
+          <div><label for="accountHolderName">Account holder name</label><input id="accountHolderName" autocomplete="off" /></div>
+          <div><label for="accountNumber">Account number</label><input id="accountNumber" inputmode="numeric" autocomplete="off" /></div>
+        </div>
+        <label for="ifsc">IFSC code</label>
+        <input id="ifsc" placeholder="HDFC0001234" autocomplete="off" style="text-transform:uppercase" />
+        <button type="submit" id="savePayout">Save payout details</button>
+        <p class="error" id="payoutError" role="alert"></p>
+        <p class="saved" id="payoutSaved" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const TOKEN_KEY = "xtovia_creator_token";
+    const RESEND_SECONDS = 60;
+    const $ = (id) => document.getElementById(id);
+    const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
+    const count = new Intl.NumberFormat("en-IN");
+    const date = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "–");
+    const STATUS_LABEL = { PENDING: "Pending", APPROVED: "Approved", PAID: "Paid", REVERSED: "Cancelled / refunded" };
+    let loginEmail = "";
+    let resendTimer = null;
+
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
+    function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+    function show(view) {
+      $("loginView").hidden = view !== "login";
+      $("profileView").hidden = view !== "profile";
+    }
+
+    async function postJSON(url, body, auth) {
+      const headers = { "Content-Type": "application/json" };
+      if (auth) headers.Authorization = `Bearer ${getToken()}`;
+      const res = await fetch(url, { method: auth === "PATCH" ? "PATCH" : "POST", headers, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && auth) { logout(); throw new Error("Please log in again."); }
+      if (!res.ok) throw new Error(data.message || "Something went wrong.");
+      return data;
+    }
+    const patchJSON = (url, body) => postJSON(url, body, "PATCH");
+
+    // ---------- Login ----------
+    function startResendCountdown() {
+      let left = RESEND_SECONDS;
+      $("resend").disabled = true;
+      clearInterval(resendTimer);
+      const tick = () => {
+        $("resend").textContent = left > 0 ? `Resend code in ${left}s` : "Resend code";
+        if (left-- <= 0) { clearInterval(resendTimer); $("resend").disabled = false; }
+      };
+      tick();
+      resendTimer = setInterval(tick, 1000);
+    }
+
+    async function sendCode() {
+      await postJSON("/api/auth/creator/otp/send", { email: loginEmail });
+      $("emailForm").hidden = true;
+      $("codeForm").hidden = false;
+      $("loginSub").textContent = `If ${loginEmail} has an affiliate link, we've emailed it a 6-digit code. It's valid for 10 minutes. Check spam too.`;
+      $("code").value = "";
+      $("code").focus();
+      startResendCountdown();
+    }
+
+    $("emailForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("emailError").textContent = "";
+      loginEmail = $("email").value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
+        $("emailError").textContent = "Please enter a valid email.";
+        return;
+      }
+      $("sendBtn").disabled = true;
+      try { await sendCode(); }
+      catch (err) { $("emailError").textContent = err.message; }
+      finally { $("sendBtn").disabled = false; }
+    });
+
+    $("resend").addEventListener("click", async () => {
+      $("codeError").textContent = "";
+      try { await sendCode(); }
+      catch (err) { $("codeError").textContent = err.message; $("resend").disabled = false; }
+    });
+
+    $("changeEmail").addEventListener("click", () => {
+      clearInterval(resendTimer);
+      $("codeForm").hidden = true;
+      $("emailForm").hidden = false;
+      $("codeError").textContent = "";
+      $("loginSub").textContent = "Enter the email you used to get your affiliate link. We'll email you a login code.";
+      $("email").focus();
+    });
+
+    $("code").addEventListener("input", () => {
+      $("code").value = $("code").value.replace(/\D/g, "").slice(0, 6);
+    });
+
+    $("codeForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("codeError").textContent = "";
+      const code = $("code").value;
+      if (!/^\d{6}$/.test(code)) { $("codeError").textContent = "Please enter the 6-digit code."; return; }
+      $("verifyBtn").disabled = true;
+      try {
+        const data = await postJSON("/api/auth/creator/otp/verify", { email: loginEmail, code });
+        setToken(data.token);
+        clearInterval(resendTimer);
+        await load();
+      } catch (err) {
+        $("codeError").textContent = err.message;
+      } finally {
+        $("verifyBtn").disabled = false;
+      }
+    });
+
+    function logout() {
+      setToken(null);
+      $("codeForm").hidden = true;
+      $("emailForm").hidden = false;
+      $("loginSub").textContent = "Enter the email you used to get your affiliate link. We'll email you a login code.";
+      show("login");
+    }
+    $("logout").addEventListener("click", logout);
+
+    // ---------- Profile ----------
+    async function getJSON(url) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
+      if (res.status === 401 || res.status === 403 || res.status === 404) { logout(); return null; }
+      if (!res.ok) throw new Error("Could not load your profile");
+      return res.json();
+    }
+
+    function cell(text, className) {
+      const td = document.createElement("td");
+      if (className) td.className = className;
+      td.textContent = text;
+      return td;
+    }
+
+    function fillDetails(a) {
+      $("hello").textContent = `Hi, ${a.fullName}`;
+      $("since").textContent = `Affiliate since ${date(a.createdAt)}`;
+      $("pName").value = a.fullName;
+      $("pMobile").value = a.mobile ? a.mobile.replace(/^\+91/, "") : "";
+      $("pEmail").value = a.email;
+      const p = a.payoutDetails || {};
+      $("upiId").value = p.upiId || "";
+      $("accountHolderName").value = p.accountHolderName || "";
+      $("accountNumber").value = p.accountNumber || "";
+      $("ifsc").value = p.ifsc || "";
+      $("rateNote").textContent = `You earn ${a.commissionRate}% on every order placed within 7 days of someone opening your link.`;
+    }
+
+    async function load() {
+      if (!getToken()) return show("login");
+      let me, stats, orders;
+      try {
+        [me, stats, orders] = await Promise.all([
+          getJSON("/api/creator/me"),
+          getJSON("/api/creator/stats"),
+          getJSON("/api/creator/commissions"),
+        ]);
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      if (!me || !stats || !orders) return;
+
+      fillDetails(me.affiliate);
+      $("myLink").value = me.trackingLink;
+      $("copyLink").textContent = "Copy";
+
+      $("sClicks").textContent = count.format(stats.totalClicks);
+      $("sOrders").textContent = count.format(stats.orders);
+      $("sPending").textContent = money.format(stats.earnings.pending);
+      $("sApproved").textContent = money.format(stats.earnings.approved);
+      $("sPaid").textContent = money.format(stats.earnings.paid);
+
+      const tbody = $("orders");
+      tbody.replaceChildren();
+      for (const o of orders) {
+        const tr = document.createElement("tr");
+        const status = document.createElement("td");
+        const badge = document.createElement("span");
+        badge.className = `badge ${o.status}`;
+        badge.textContent = STATUS_LABEL[o.status] || o.status;
+        status.append(badge);
+        tr.append(
+          cell(o.orderName || "–"),
+          cell(date(o.createdAt)),
+          cell(money.format(Math.max(0, o.orderBase - (o.refundedBase || 0))), "num"),
+          cell(money.format(o.amount), "num"),
+          status
+        );
+        tbody.append(tr);
+      }
+      $("noOrders").hidden = orders.length > 0;
+      show("profile");
+    }
+
+    $("copyLink").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText($("myLink").value); }
+      catch { $("myLink").select(); document.execCommand("copy"); }
+      $("copyLink").textContent = "Copied";
+    });
+
+    async function save(form, btn, errEl, okEl, url, body, onDone) {
+      errEl.textContent = "";
+      okEl.textContent = "";
+      btn.disabled = true;
+      try {
+        const data = await patchJSON(url, body);
+        okEl.textContent = "Saved";
+        if (onDone) onDone(data);
+      } catch (err) {
+        errEl.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    $("detailsForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const body = { fullName: $("pName").value.trim() };
+      const mobile = $("pMobile").value.trim();
+      if (mobile) body.mobile = mobile;
+      save($("detailsForm"), $("saveDetails"), $("detailsError"), $("detailsSaved"), "/api/creator/me", body,
+        (data) => fillDetails(data.affiliate));
+    });
+
+    $("payoutForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const body = {};
+      for (const id of ["upiId", "accountHolderName", "accountNumber", "ifsc"]) body[id] = $(id).value.trim();
+      save($("payoutForm"), $("savePayout"), $("payoutError"), $("payoutSaved"), "/api/creator/payout-details", body);
+    });
+
+    load();
+  </script>
+</body>
+</html>
